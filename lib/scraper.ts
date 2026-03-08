@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 import { extractColors } from './colorExtractor';
 
 export async function scrapeSite(url: string, delay: number = 2000) {
@@ -8,7 +8,7 @@ export async function scrapeSite(url: string, delay: number = 2000) {
     const isDev = process.env.NODE_ENV === 'development' || !process.env.VERCEL;
     const exePath = isDev 
       ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' 
-      : await chromium.executablePath();
+      : await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar');
 
     browser = await puppeteer.launch({
       args: isDev ? [] : chromium.args,

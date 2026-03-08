@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeSite } from '@/lib/scraper';
 
+export const maxDuration = 60; // Set max duration for Vercel Serverless Functions
+
 export async function POST(req: NextRequest) {
   try {
     const { url, delay } = await req.json();
