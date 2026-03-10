@@ -67,19 +67,17 @@ export const useDAStore = create<DAStore>()(
     {
       name: 'da-gen-store',
       // Only persist user choices and scrape results, not transient UI state
+      // Exclude heavy base64 data (screenshots, logos, local fonts) to stay under localStorage ~5MB quota
       partialize: (state) => ({
         url: state.url,
-        scrapeResult: state.scrapeResult,
-        selectedLogo: state.selectedLogo,
-        logoScale: state.logoScale,
         selectedColors: state.selectedColors,
         bgColor: state.bgColor,
         fontName: state.fontName,
         fontUrl: state.fontUrl,
         borderRadius: state.borderRadius,
-        localFontFile: state.localFontFile,
         theme: state.theme,
-        agencyLogo: state.agencyLogo,
+        agencyLogo: state.agencyLogo === '/logo-teaps.svg' ? state.agencyLogo : undefined,
+        logoScale: state.logoScale,
         screenshotDelay: state.screenshotDelay,
       }),
     }

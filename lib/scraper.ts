@@ -123,6 +123,21 @@ export async function scrapeSite(url: string, delay: number = 2000) {
         '.axeptio_widget',
         '.axeptio-widget',
         '[id^="axeptio"]',
+        // Review / trust badges (Société des Avis Garantis, Trustpilot, Avis Vérifiés, etc.)
+        '.agJsWidget',
+        '[id^="agWidget"]',
+        '[class*="trustpilot-widget" i]',
+        '[id*="trustpilot" i]',
+        '[class*="avis-verifies" i]',
+        '[id*="avis-verifies" i]',
+        // Generic floating widgets (chat, support, etc.)
+        '[class*="chat-widget" i]',
+        '[class*="chatWidget" i]',
+        '[id*="chat-widget" i]',
+        '[id*="intercom" i]',
+        '[id*="crisp" i]',
+        '[id*="hubspot-messages" i]',
+        '[id*="tidio" i]',
       ];
       const style = document.createElement('style');
       style.innerHTML = overlaySelectors.map(s => `${s} { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }`).join('\n');
