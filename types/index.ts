@@ -1,3 +1,11 @@
+export type PageScreenshots = {
+  label: string;
+  url: string;
+  desktop: string;
+  desktopFull: string;
+  mobile: string;
+};
+
 export type ScrapeResult = {
   logos: string[];
   logo: string;
@@ -23,19 +31,7 @@ export type ScrapeResult = {
     desktopFull: string;
     mobile: string;
   };
-  productListScreenshots?: {
-    desktop: string;
-    desktopFull: string;
-    mobile: string;
-    url: string;
-  };
-  productScreenshots?: {
-    desktop: string;
-    desktopFull: string;
-    mobile: string;
-    url: string;
-  };
-  siteType: 'vitrine' | 'ecommerce';
+  extraPages: PageScreenshots[];
   siteUrl: string;
   domain: string;
   title: string;
@@ -45,27 +41,24 @@ export type DAStore = {
   url: string;
   setUrl: (url: string) => void;
 
-  siteType: 'vitrine' | 'ecommerce';
-  setSiteType: (type: 'vitrine' | 'ecommerce') => void;
+  activePageIndex: number;
+  setActivePageIndex: (index: number) => void;
 
-  activePage: 'home' | 'productList' | 'product';
-  setActivePage: (page: 'home' | 'productList' | 'product') => void;
-  
   scrapeResult: ScrapeResult | null;
   setScrapeResult: (result: ScrapeResult) => void;
-  
+
   selectedLogo: string;
   setSelectedLogo: (logo: string) => void;
 
   logoScale: number;
   setLogoScale: (scale: number) => void;
-  
+
   selectedColors: string[];
   toggleColor: (hex: string) => void;
-  
+
   bgColor: string;
   setBgColor: (hex: string) => void;
-  
+
   fontName: string;
   fontUrl: string | undefined;
   setFont: (name: string, url?: string) => void;
@@ -73,18 +66,18 @@ export type DAStore = {
   borderRadius: number;
   setBorderRadius: (radius: number) => void;
 
-  localFontFile: string | null; // Base64 or Blob URL
+  localFontFile: string | null;
   setLocalFontFile: (file: string | null) => void;
 
   theme: 'dark' | 'light';
   toggleTheme: () => void;
-  
+
   agencyLogo: string;
   setAgencyLogo: (logo: string) => void;
-  
+
   screenshotDelay: number;
   setScreenshotDelay: (delay: number) => void;
-  
+
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   error: string | null;

@@ -2,29 +2,23 @@ import { useDAStore } from "@/store/daStore";
 
 /** Returns the screenshots for the currently active page */
 export function useActiveScreenshots() {
-  const { scrapeResult, activePage } = useDAStore();
+  const { scrapeResult, activePageIndex } = useDAStore();
   if (!scrapeResult) return null;
 
-  if (activePage === "productList" && scrapeResult.productListScreenshots) {
+  // Index 0 = home page (main screenshots)
+  if (activePageIndex === 0) {
+    return scrapeResult.screenshots;
+  }
+
+  // Index 1+ = extra pages
+  const extraPage = scrapeResult.extraPages[activePageIndex - 1];
+  if (extraPage) {
     return {
-      desktop: scrapeResult.productListScreenshots.desktop,
-      desktopFull: scrapeResult.productListScreenshots.desktopFull,
-      mobile: scrapeResult.productListScreenshots.mobile,
+      desktop: extraPage.desktop,
+      desktopFull: extraPage.desktopFull,
+      mobile: extraPage.mobile,
     };
   }
 
-  if (activePage === "product" && scrapeResult.productScreenshots) {
-    return {
-      desktop: scrapeResult.productScreenshots.desktop,
-      desktopFull: scrapeResult.productScreenshots.desktopFull,
-      mobile: scrapeResult.productScreenshots.mobile,
-    };
-  }
-
-  // Default: home page
-  return {
-    desktop: scrapeResult.screenshots.desktop,
-    desktopFull: scrapeResult.screenshots.desktopFull,
-    mobile: scrapeResult.screenshots.mobile,
-  };
+  return scrapeResult.screenshots;
 }

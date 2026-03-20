@@ -101,7 +101,7 @@ export default function Home() {
       return;
     }
 
-    const { screenshotDelay, siteType } = useDAStore.getState();
+    const { screenshotDelay } = useDAStore.getState();
 
     setIsLoading(true);
     setError(null);
@@ -110,7 +110,7 @@ export default function Home() {
       const response = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze, delay: screenshotDelay, siteType }),
+        body: JSON.stringify({ url: urlToAnalyze, delay: screenshotDelay }),
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);

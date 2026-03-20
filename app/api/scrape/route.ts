@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeSite } from '@/lib/scraper';
 
-export const maxDuration = 60; // Set max duration for Vercel Serverless Functions
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, delay, siteType, productListUrl, productUrl } = await req.json();
+    const { url, delay, extraPages } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Validate URL format and protocol
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url);
@@ -23,11 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Seuls les protocoles HTTP et HTTPS sont supportés.' }, { status: 400 });
     }
 
-    const result = await scrapeSite(parsedUrl.href, delay, {
-      siteType: siteType || 'vitrine',
-      productListUrl: productListUrl || undefined,
-      productUrl: productUrl || undefined,
-    });
+    const result = await scrapeSite(parsedUrl.href, delay, extraPages || []);
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('Scraping error:', error);

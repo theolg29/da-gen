@@ -9,11 +9,8 @@ export const useDAStore = create<DAStore>()(
       url: '',
       setUrl: (url: string) => set({ url }),
 
-      siteType: 'vitrine' as const,
-      setSiteType: (type: 'vitrine' | 'ecommerce') => set({ siteType: type }),
-
-      activePage: 'home' as const,
-      setActivePage: (page: 'home' | 'productList' | 'product') => set({ activePage: page }),
+      activePageIndex: 0,
+      setActivePageIndex: (index: number) => set({ activePageIndex: index }),
 
       // Scraped data
       scrapeResult: null,
@@ -24,7 +21,7 @@ export const useDAStore = create<DAStore>()(
         fontName: result.font.name,
         fontUrl: result.font.url,
         bgColor: result.siteBgColor || '#F2EEE9',
-        activePage: 'home',
+        activePageIndex: 0,
       }),
 
       selectedLogo: '',
@@ -73,11 +70,8 @@ export const useDAStore = create<DAStore>()(
     }),
     {
       name: 'da-gen-store',
-      // Only persist user choices and scrape results, not transient UI state
-      // Exclude heavy base64 data (screenshots, logos, local fonts) to stay under localStorage ~5MB quota
       partialize: (state) => ({
         url: state.url,
-        siteType: state.siteType,
         selectedColors: state.selectedColors,
         bgColor: state.bgColor,
         fontName: state.fontName,

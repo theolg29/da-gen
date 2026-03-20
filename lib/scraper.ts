@@ -2,11 +2,7 @@ import puppeteer, { type Page } from 'puppeteer-core';
 import chromium from '@sparticuz/chromium-min';
 import { extractColors } from './colorExtractor';
 
-type ScrapeOptions = {
-  siteType: 'vitrine' | 'ecommerce';
-  productListUrl?: string;
-  productUrl?: string;
-};
+type ExtraPage = { label: string; url: string };
 
 /** Dismiss cookie banners, hide overlays & floating widgets */
 async function dismissPopups(page: Page) {
@@ -113,7 +109,7 @@ async function navigateAndCapture(page: Page, pageUrl: string, delay: number) {
   return captureScreenshots(page);
 }
 
-export async function scrapeSite(url: string, delay: number = 2000, options: ScrapeOptions = { siteType: 'vitrine' }) {
+export async function scrapeSite(url: string, delay: number = 2000, extraPages: ExtraPage[] = []) {
   let browser = null;
   try {
     const isDev = process.env.NODE_ENV === 'development' || !process.env.VERCEL;
@@ -306,33 +302,26 @@ export async function scrapeSite(url: string, delay: number = 2000, options: Scr
 
     const primaryFont = fontsWithUrls[0];
 
-    // E-commerce: capture extra page screenshots
-    let productListScreenshots: { desktop: string; desktopFull: string; mobile: string; url: string } | undefined;
-    let productScreenshots: { desktop: string; desktopFull: string; mobile: string; url: string } | undefined;
-
-    if (options.siteType === 'ecommerce') {
-      if (options.productListUrl) {
-        try {
-          const shots = await navigateAndCapture(page, options.productListUrl, delay);
-          productListScreenshots = { desktop: shots.desktop, desktopFull: shots.desktopFull, mobile: shots.mobile, url: options.productListUrl };
-        } catch (e) {
-          console.error('[scraper] Failed to capture product list page:', e);
-        }
-      }
-      if (options.productUrl) {
-        try {
-          const shots = await navigateAndCapture(page, options.productUrl, delay);
-          productScreenshots = { desktop: shots.desktop, desktopFull: shots.desktopFull, mobile: shots.mobile, url: options.productUrl };
-        } catch (e) {
-          console.error('[scraper] Failed to capture product page:', e);
-        }
+    // Capture extra pages
+    const capturedExtraPages: { label: string; url: string; desktop: string; desktopFull: string; mobile: string }[] = [];
+    for (const ep of extraPages) {
+      try {
+        const shots = await navigateAndCapture(page, ep.url, delay);
+        capturedExtraPages.push({
+          label: ep.label,
+          url: ep.url,
+          desktop: shots.desktop,
+          desktopFull: shots.desktopFull,
+          mobile: shots.mobile,
+        });
+      } catch (e) {
+        console.error(`[scraper] Failed to capture extra page "${ep.label}":`, e);
       }
     }
 
     return {
       title,
       domain,
-      siteType: options.siteType,
       siteUrl: url,
       logos: logosBase64,
       logo: logosBase64[0] || '',
@@ -353,8 +342,7 @@ export async function scrapeSite(url: string, delay: number = 2000, options: Scr
         desktopFull: mainScreenshots.desktopFull,
         mobile: mainScreenshots.mobile,
       },
-      productListScreenshots,
-      productScreenshots,
+      extraPages: capturedExtraPages,
     };
   } finally {
     if (browser) await (browser as any).close();
