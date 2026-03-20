@@ -1,10 +1,12 @@
 import React from "react";
 import { useDAStore } from "@/store/daStore";
+import { useActiveScreenshots } from "@/lib/useActiveScreenshots";
 
 export const Frame2_Mockup = ({ id }: { id?: string }) => {
   const { scrapeResult, bgColor, borderRadius } = useDAStore();
+  const activeScreenshots = useActiveScreenshots();
 
-  if (!scrapeResult) return null;
+  if (!scrapeResult || !activeScreenshots) return null;
 
   // Figma specs:
   // - Frame: 2373×1473, padding 58px, overflow clipped
@@ -43,7 +45,7 @@ export const Frame2_Mockup = ({ id }: { id?: string }) => {
         }}
       >
         <img
-          src={scrapeResult.screenshots.desktopFull}
+          src={activeScreenshots.desktopFull}
           alt="Desktop full"
           style={{
             width: "100%",
@@ -72,7 +74,7 @@ export const Frame2_Mockup = ({ id }: { id?: string }) => {
         }}
       >
         <img
-          src={scrapeResult.screenshots.mobile}
+          src={activeScreenshots.mobile}
           alt="Mobile preview"
           style={{
             width: "100%",

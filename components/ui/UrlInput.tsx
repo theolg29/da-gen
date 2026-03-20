@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useDAStore } from "@/store/daStore";
-import { Loader2, Settings2 } from "lucide-react";
+import { Loader2, Settings2, Store, Globe } from "lucide-react";
 
 export const UrlInput = () => {
   const {
@@ -11,8 +11,12 @@ export const UrlInput = () => {
     isLoading,
     screenshotDelay,
     setScreenshotDelay,
+    siteType,
+    setSiteType,
   } = useDAStore();
   const [localUrl, setLocalUrl] = useState("");
+  const [localProductListUrl, setLocalProductListUrl] = useState("");
+  const [localProductUrl, setLocalProductUrl] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleAnalyze = async () => {
@@ -33,6 +37,14 @@ export const UrlInput = () => {
       return;
     }
 
+    // Normalize extra URLs
+    const prepareUrl = (raw: string) => {
+      let u = raw.trim();
+      if (!u) return undefined;
+      if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
+      try { new URL(u); return u; } catch { return undefined; }
+    };
+
     setIsLoading(true);
     setError(null);
     setUrl(urlToAnalyze);
@@ -40,20 +52,53 @@ export const UrlInput = () => {
       const response = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze, delay: screenshotDelay }),
+        body: JSON.stringify({
+          url: urlToAnalyze,
+          delay: screenshotDelay,
+          siteType,
+          productListUrl: siteType === 'ecommerce' ? prepareUrl(localProductListUrl) : undefined,
+          productUrl: siteType === 'ecommerce' ? prepareUrl(localProductUrl) : undefined,
+        }),
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       setScrapeResult(data);
-    } catch (err: any) {
-      setError(err.message || "Impossible d'analyser ce site.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Impossible d'analyser ce site.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <div className="flex flex-col gap-2.5 w-full">
+      {/* Site type toggle */}
+      <div className="flex gap-1.5 p-1 bg-background border border-border rounded-xl">
+        <button
+          onClick={() => setSiteType('vitrine')}
+          className={`flex-1 h-9 flex items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            siteType === 'vitrine'
+              ? "bg-foreground text-background shadow-sm"
+              : "text-foreground/40 hover:text-foreground/60"
+          }`}
+        >
+          <Globe className="w-3.5 h-3.5" />
+          Site vitrine
+        </button>
+        <button
+          onClick={() => setSiteType('ecommerce')}
+          className={`flex-1 h-9 flex items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            siteType === 'ecommerce'
+              ? "bg-foreground text-background shadow-sm"
+              : "text-foreground/40 hover:text-foreground/60"
+          }`}
+        >
+          <Store className="w-3.5 h-3.5" />
+          E-commerce
+        </button>
+      </div>
+
+      {/* Main URL */}
       <div className="flex flex-col md:flex-row gap-3 w-full relative">
         <div className="flex-1 relative">
           <input
@@ -80,6 +125,26 @@ export const UrlInput = () => {
           {isLoading ? "Analyse en cours..." : "Générer le projet"}
         </button>
       </div>
+
+      {/* E-commerce extra URLs */}
+      {siteType === 'ecommerce' && (
+        <div className="flex flex-col gap-2 animate-in slide-in-from-top-2 fade-in duration-200">
+          <input
+            type="text"
+            value={localProductListUrl}
+            onChange={(e) => setLocalProductListUrl(e.target.value)}
+            placeholder="Page catalogue — https://www.exemple.com/collections/all"
+            className="w-full h-12 bg-background border border-border rounded-xl px-5 text-sm outline-none focus:border-foreground/20 transition-all font-medium placeholder:text-foreground/25"
+          />
+          <input
+            type="text"
+            value={localProductUrl}
+            onChange={(e) => setLocalProductUrl(e.target.value)}
+            placeholder="Page produit — https://www.exemple.com/products/exemple"
+            className="w-full h-12 bg-background border border-border rounded-xl px-5 text-sm outline-none focus:border-foreground/20 transition-all font-medium placeholder:text-foreground/25"
+          />
+        </div>
+      )}
 
       {showAdvanced && (
         <div className="absolute bottom-full right-[200px] mb-3 w-64 bg-background border border-border shadow-2xl rounded-xl p-3 flex flex-col gap-3 animate-in slide-in-from-bottom-2 fade-in duration-200 z-50">

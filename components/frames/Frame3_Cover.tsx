@@ -1,10 +1,12 @@
 import React from "react";
 import { useDAStore } from "@/store/daStore";
+import { useActiveScreenshots } from "@/lib/useActiveScreenshots";
 
 export const Frame3_Cover = ({ id }: { id?: string }) => {
   const { scrapeResult, bgColor, agencyLogo, borderRadius } = useDAStore();
+  const activeScreenshots = useActiveScreenshots();
 
-  if (!scrapeResult) return null;
+  if (!scrapeResult || !activeScreenshots) return null;
 
   return (
     <div
@@ -172,7 +174,7 @@ export const Frame3_Cover = ({ id }: { id?: string }) => {
           }}
         >
           <img
-            src={scrapeResult.screenshots.desktop}
+            src={activeScreenshots.desktop}
             alt="Desktop hero"
             style={{
               width: "100%",

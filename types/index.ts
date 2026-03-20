@@ -23,6 +23,19 @@ export type ScrapeResult = {
     desktopFull: string;
     mobile: string;
   };
+  productListScreenshots?: {
+    desktop: string;
+    desktopFull: string;
+    mobile: string;
+    url: string;
+  };
+  productScreenshots?: {
+    desktop: string;
+    desktopFull: string;
+    mobile: string;
+    url: string;
+  };
+  siteType: 'vitrine' | 'ecommerce';
   siteUrl: string;
   domain: string;
   title: string;
@@ -31,6 +44,12 @@ export type ScrapeResult = {
 export type DAStore = {
   url: string;
   setUrl: (url: string) => void;
+
+  siteType: 'vitrine' | 'ecommerce';
+  setSiteType: (type: 'vitrine' | 'ecommerce') => void;
+
+  activePage: 'home' | 'productList' | 'product';
+  setActivePage: (page: 'home' | 'productList' | 'product') => void;
   
   scrapeResult: ScrapeResult | null;
   setScrapeResult: (result: ScrapeResult) => void;

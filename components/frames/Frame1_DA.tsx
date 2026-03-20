@@ -1,5 +1,6 @@
 import React from "react";
 import { useDAStore } from "@/store/daStore";
+import { useActiveScreenshots } from "@/lib/useActiveScreenshots";
 import { getTextColor } from "@/lib/contrastUtils";
 
 export const Frame1_DA = ({ id }: { id?: string }) => {
@@ -13,8 +14,9 @@ export const Frame1_DA = ({ id }: { id?: string }) => {
     borderRadius,
     logoScale,
   } = useDAStore();
+  const activeScreenshots = useActiveScreenshots();
 
-  if (!scrapeResult) return null;
+  if (!scrapeResult || !activeScreenshots) return null;
 
   const fontFamily = localFontFile ? "LocalFont" : `"${fontName}", sans-serif`;
   const bgTextColor = getTextColor(bgColor);
@@ -182,7 +184,7 @@ export const Frame1_DA = ({ id }: { id?: string }) => {
           }}
         >
           <img
-            src={scrapeResult.screenshots.desktop}
+            src={activeScreenshots.desktop}
             alt="Desktop preview"
             style={{
               width: "100%",

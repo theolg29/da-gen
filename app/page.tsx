@@ -9,6 +9,7 @@ import { FontSelector } from "@/components/ui/FontSelector";
 import { LogoSelector } from "@/components/ui/LogoSelector";
 import { AgencyLogoUpload } from "@/components/ui/AgencyLogoUpload";
 import { RadiusSelector } from "@/components/ui/RadiusSelector";
+import { PageScreenshots } from "@/components/ui/PageScreenshots";
 import {
   Accordion,
   AccordionContent,
@@ -26,8 +27,6 @@ import {
   Moon,
   Loader2,
   ArrowRight,
-  PanelLeftClose,
-  PanelLeft,
   TriangleAlert,
 } from "lucide-react";
 
@@ -69,7 +68,6 @@ export default function Home() {
   const [isExportingPack, setIsExportingPack] = React.useState(false);
   const [showOffscreenFrames, setShowOffscreenFrames] = React.useState(false);
   const [headerUrl, setHeaderUrl] = React.useState("");
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
 
   // States for handling the slide-out unmount of the LoadingOverlay
   const [showLoadingOverlay, setShowLoadingOverlay] = React.useState(false);
@@ -103,6 +101,8 @@ export default function Home() {
       return;
     }
 
+    const { screenshotDelay, siteType } = useDAStore.getState();
+
     setIsLoading(true);
     setError(null);
     setUrl(urlToAnalyze);
@@ -110,13 +110,13 @@ export default function Home() {
       const response = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze }),
+        body: JSON.stringify({ url: urlToAnalyze, delay: screenshotDelay, siteType }),
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       setScrapeResult(data);
-    } catch (err: any) {
-      setError(err.message || "Impossible d'analyser ce site.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Impossible d'analyser ce site.");
     } finally {
       setIsLoading(false);
     }
@@ -313,31 +313,19 @@ export default function Home() {
         <div className="pt-12 flex min-h-screen">
           {/* SIDEBAR SHADCN ACCORDION */}
           <aside
-            className="fixed left-0 top-[45px] bottom-0 bg-card border-r border-border overflow-y-auto overflow-x-hidden z-50 transition-all duration-300 ease-in-out"
-            style={{
-              width: sidebarOpen ? "320px" : "0px",
-              padding: sidebarOpen ? "20px" : "0px",
-            }}
+            className="fixed left-0 top-[45px] bottom-0 w-[320px] p-5 bg-card border-r border-border overflow-y-auto overflow-x-hidden z-50"
           >
-            <div
-              className="mb-5 pb-4 border-b border-border flex items-start justify-between gap-2"
-              style={{ minWidth: "280px" }}
-            >
-              <div className="flex-1 min-w-0">
-                <h2 className="text-sm font-bold truncate leading-tight">
-                  {scrapeResult.title || "Projet"}
-                </h2>
-                <p className="text-[11px] text-foreground/30 font-medium mt-1 truncate">
-                  {scrapeResult.domain}
-                </p>
-              </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-foreground/5 text-foreground/30 hover:text-foreground/60 transition-all cursor-pointer shrink-0 mt-0.5"
-                title="Fermer le panneau"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </button>
+            <div className="mb-5 pb-4 border-b border-border">
+              <h2 className="text-sm font-bold truncate leading-tight">
+                {scrapeResult.title || "Projet"}
+              </h2>
+              <p className="text-[11px] text-foreground/30 font-medium mt-1 truncate">
+                {scrapeResult.domain}
+              </p>
+            </div>
+
+            <div className="mb-4 pb-4 border-b border-border">
+              <PageScreenshots />
             </div>
 
             <Accordion type="multiple" defaultValue={[]} className="w-full">
@@ -408,21 +396,9 @@ export default function Home() {
             </div>
           </aside>
 
-          {/* Sidebar toggle button when collapsed */}
-          {!sidebarOpen && (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="fixed left-4 top-[55px] z-50 p-2 rounded-lg bg-card border border-border shadow-sm hover:bg-foreground/5 text-foreground/40 hover:text-foreground/60 transition-all cursor-pointer"
-              title="Ouvrir le panneau"
-            >
-              <PanelLeft className="w-4 h-4" />
-            </button>
-          )}
-
           {/* PREVIEWS */}
           <main
-            className="flex-1 p-12 lg:p-20 bg-background transition-all duration-300 ease-in-out"
-            style={{ marginLeft: sidebarOpen ? "320px" : "0px" }}
+            className="flex-1 p-12 lg:p-20 bg-background ml-[320px]"
           >
             <div className="max-w-5xl mx-auto space-y-32">
               <PreviewContainer title="01 / IDENTITÉ" id="frame-1-da">

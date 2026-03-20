@@ -5,7 +5,7 @@ export const maxDuration = 60; // Set max duration for Vercel Serverless Functio
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, delay } = await req.json();
+    const { url, delay, siteType, productListUrl, productUrl } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -23,10 +23,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Seuls les protocoles HTTP et HTTPS sont supportés.' }, { status: 400 });
     }
 
-    const result = await scrapeSite(parsedUrl.href, delay);
+    const result = await scrapeSite(parsedUrl.href, delay, {
+      siteType: siteType || 'vitrine',
+      productListUrl: productListUrl || undefined,
+      productUrl: productUrl || undefined,
+    });
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Scraping error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to scrape site' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to scrape site' }, { status: 500 });
   }
 }
