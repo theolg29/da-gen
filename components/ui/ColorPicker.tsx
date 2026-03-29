@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { useDAStore } from "@/store/daStore";
 import { toast } from "sonner";
-import { Pipette, Check } from "lucide-react";
+import { Pipette, Check, Copy } from "lucide-react";
 
 const PRESET_BG_COLORS = [
   { name: "Sable", hex: "#F2EEE9" },
@@ -13,6 +13,16 @@ const PRESET_BG_COLORS = [
 export const ColorPicker = () => {
   const { scrapeResult, selectedColors, toggleColor, bgColor, setBgColor } =
     useDAStore();
+
+  const [copiedHex, setCopiedHex] = useState<string | null>(null);
+
+  const handleCopy = useCallback((hex: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(hex.toUpperCase());
+    setCopiedHex(hex);
+    toast.success("Copié", { description: hex.toUpperCase() });
+    setTimeout(() => setCopiedHex(null), 1500);
+  }, []);
 
   if (!scrapeResult) return null;
 
@@ -45,9 +55,17 @@ export const ColorPicker = () => {
               }`}
               style={{ backgroundColor: color.hex }}
             >
-              {/* HEX tooltip on hover */}
-              <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-foreground text-background text-[10px] font-bold tracking-wider whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-150 translate-y-1 group-hover:translate-y-0 z-50 shadow-lg">
+              {/* HEX tooltip on hover — click to copy */}
+              <span
+                className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-foreground text-background text-[10px] font-bold tracking-wider whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-150 translate-y-1 group-hover:translate-y-0 z-[999] shadow-lg flex items-center gap-1 cursor-pointer"
+                onClick={(e) => handleCopy(color.hex, e)}
+              >
                 {color.hex.toUpperCase()}
+                {copiedHex === color.hex ? (
+                  <Check className="w-2.5 h-2.5 opacity-70" />
+                ) : (
+                  <Copy className="w-2.5 h-2.5 opacity-50" />
+                )}
               </span>
               {selectedColors.includes(color.hex) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-xl">

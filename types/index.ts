@@ -1,3 +1,11 @@
+export type PageScreenshots = {
+  label: string;
+  url: string;
+  desktop: string;
+  desktopFull: string;
+  mobile: string;
+};
+
 export type ScrapeResult = {
   logos: string[];
   logo: string;
@@ -11,18 +19,19 @@ export type ScrapeResult = {
     name: string;
     url?: string;
     isGoogleFont: boolean;
+    isSelfHosted?: boolean;
   }[];
   font: {
     name: string;
     url?: string;
     isGoogleFont: boolean;
-    cssImport?: string;
   };
   screenshots: {
     desktop: string;
     desktopFull: string;
     mobile: string;
   };
+  extraPages: PageScreenshots[];
   siteUrl: string;
   domain: string;
   title: string;
@@ -31,22 +40,25 @@ export type ScrapeResult = {
 export type DAStore = {
   url: string;
   setUrl: (url: string) => void;
-  
+
+  activePageIndex: number;
+  setActivePageIndex: (index: number) => void;
+
   scrapeResult: ScrapeResult | null;
   setScrapeResult: (result: ScrapeResult) => void;
-  
+
   selectedLogo: string;
   setSelectedLogo: (logo: string) => void;
 
   logoScale: number;
   setLogoScale: (scale: number) => void;
-  
+
   selectedColors: string[];
   toggleColor: (hex: string) => void;
-  
+
   bgColor: string;
   setBgColor: (hex: string) => void;
-  
+
   fontName: string;
   fontUrl: string | undefined;
   setFont: (name: string, url?: string) => void;
@@ -54,18 +66,18 @@ export type DAStore = {
   borderRadius: number;
   setBorderRadius: (radius: number) => void;
 
-  localFontFile: string | null; // Base64 or Blob URL
+  localFontFile: string | null;
   setLocalFontFile: (file: string | null) => void;
 
   theme: 'dark' | 'light';
   toggleTheme: () => void;
-  
+
   agencyLogo: string;
   setAgencyLogo: (logo: string) => void;
-  
+
   screenshotDelay: number;
   setScreenshotDelay: (delay: number) => void;
-  
+
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   error: string | null;
