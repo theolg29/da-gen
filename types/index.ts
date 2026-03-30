@@ -37,6 +37,23 @@ export type ScrapeResult = {
   title: string;
 };
 
+export type GeneratedContent = {
+  caseStudy: {
+    title: string;
+    tagline: string;
+    intro: string;
+    challenge: string;
+    solution: string;
+    results: string;
+    services: string[];
+    platform: string;
+  };
+  socialPost: {
+    caption: string;
+    hashtags: string[];
+  };
+};
+
 export type DAStore = {
   url: string;
   setUrl: (url: string) => void;

@@ -20,6 +20,9 @@ import { Frame1_DA } from "@/components/frames/Frame1_DA";
 import { Frame2_Mockup } from "@/components/frames/Frame2_Mockup";
 import { Frame3_Cover } from "@/components/frames/Frame3_Cover";
 import { LoadingOverlay } from "@/components/ui/LoadingOverlay";
+import { ContentChat } from "@/components/ContentChat";
+import { FileUpload } from "@/components/ui/FileUpload";
+import { GeneratedContent } from "@/types";
 import { exportFrame, exportAllFrames } from "@/lib/exportFrames";
 import {
   Download,
@@ -68,6 +71,40 @@ export default function Home() {
   const [isExportingPack, setIsExportingPack] = React.useState(false);
   const [showOffscreenFrames, setShowOffscreenFrames] = React.useState(false);
   const [headerUrl, setHeaderUrl] = React.useState("");
+  const [sidebarTab, setSidebarTab] = React.useState<"visuels" | "contenu">("visuels");
+
+  // Content generation state
+  const [contentChips, setContentChips] = React.useState<string[]>([]);
+  const [contentFiles, setContentFiles] = React.useState<File[]>([]);
+  const [contentBrief, setContentBrief] = React.useState("");
+  const [generatedContent, setGeneratedContent] = React.useState<GeneratedContent | null>(null);
+  const [isGeneratingContent, setIsGeneratingContent] = React.useState(false);
+  const [contentError, setContentError] = React.useState<string | null>(null);
+
+  const handleGenerateContent = React.useCallback(async () => {
+    if (!scrapeResult) return;
+    setIsGeneratingContent(true);
+    setContentError(null);
+    try {
+      const formData = new FormData();
+      formData.append("chips", JSON.stringify(contentChips));
+      formData.append("siteData", JSON.stringify({
+        title: scrapeResult.title,
+        domain: scrapeResult.domain,
+        siteUrl: scrapeResult.siteUrl,
+      }));
+      formData.append("clientBrief", contentBrief);
+      contentFiles.forEach((f) => formData.append("files", f));
+      const res = await fetch("/api/generate-content", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setGeneratedContent(data);
+    } catch (err) {
+      setContentError(err instanceof Error ? err.message : "Erreur lors de la génération.");
+    } finally {
+      setIsGeneratingContent(false);
+    }
+  }, [scrapeResult, contentChips, contentFiles, contentBrief]);
 
   // States for handling the slide-out unmount of the LoadingOverlay
   const [showLoadingOverlay, setShowLoadingOverlay] = React.useState(false);
@@ -313,9 +350,10 @@ export default function Home() {
         <div className="pt-12 flex min-h-screen">
           {/* SIDEBAR SHADCN ACCORDION */}
           <aside
-            className="fixed left-0 top-[45px] bottom-0 w-[320px] p-5 bg-card border-r border-border overflow-y-auto overflow-x-hidden z-50"
+            className="fixed left-0 top-[45px] bottom-0 w-[320px] bg-card border-r border-border overflow-hidden z-50 flex flex-col"
           >
-            <div className="mb-5 pb-4 border-b border-border">
+            {/* Project header */}
+            <div className="px-5 pt-5 pb-4 border-b border-border shrink-0">
               <h2 className="text-sm font-bold truncate leading-tight">
                 {scrapeResult.title || "Projet"}
               </h2>
@@ -324,95 +362,154 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="mb-4 pb-4 border-b border-border">
-              <PageScreenshots />
+            {/* Tab switcher */}
+            <div className="px-5 py-3 border-b border-border shrink-0">
+              <div className="flex bg-foreground/[0.05] rounded-lg p-0.5 gap-0.5">
+                {(["visuels", "contenu"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setSidebarTab(tab)}
+                    className={`
+                      flex-1 py-1.5 text-[11px] font-semibold rounded-md transition-all cursor-pointer capitalize
+                      ${sidebarTab === tab
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-foreground/40 hover:text-foreground/60"
+                      }
+                    `}
+                  >
+                    {tab === "visuels" ? "Visuels" : "Contenu"}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <Accordion type="multiple" defaultValue={[]} className="w-full">
-              <AccordionItem value="identity" className="border-border">
-                <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
-                  Identité agence
-                </AccordionTrigger>
-                <AccordionContent>
-                  <AgencyLogoUpload />
-                </AccordionContent>
-              </AccordionItem>
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              {sidebarTab === "visuels" && (
+                <div className="p-5 flex flex-col gap-0">
+                  <div className="mb-4 pb-4 border-b border-border">
+                    <PageScreenshots />
+                  </div>
 
-              <AccordionItem value="scraped-logos" className="border-border">
-                <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
-                  Logos extraits
-                </AccordionTrigger>
-                <AccordionContent>
-                  <LogoSelector />
-                </AccordionContent>
-              </AccordionItem>
+                  <Accordion type="multiple" defaultValue={[]} className="w-full">
+                    <AccordionItem value="identity" className="border-border">
+                      <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
+                        Identité agence
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <AgencyLogoUpload />
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <AccordionItem value="colors" className="border-border">
-                <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
-                  Couleurs
-                </AccordionTrigger>
-                <AccordionContent>
-                  <ColorPicker />
-                </AccordionContent>
-              </AccordionItem>
+                    <AccordionItem value="scraped-logos" className="border-border">
+                      <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
+                        Logos extraits
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <LogoSelector />
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <AccordionItem value="typography" className="border-border">
-                <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
-                  <span className="flex items-center gap-2">
-                    Typographie
-                    {fontName && !fontUrl && !localFontFile && (
-                      <TriangleAlert className="w-3.5 h-3.5 text-amber-500" />
-                    )}
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <FontSelector />
-                </AccordionContent>
-              </AccordionItem>
+                    <AccordionItem value="colors" className="border-border">
+                      <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
+                        Couleurs
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <ColorPicker />
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <AccordionItem value="structure" className="border-border">
-                <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
-                  Structure
-                </AccordionTrigger>
-                <AccordionContent>
-                  <RadiusSelector />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                    <AccordionItem value="typography" className="border-border">
+                      <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
+                        <span className="flex items-center gap-2">
+                          Typographie
+                          {fontName && !fontUrl && !localFontFile && (
+                            <TriangleAlert className="w-3.5 h-3.5 text-amber-500" />
+                          )}
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <FontSelector />
+                      </AccordionContent>
+                    </AccordionItem>
 
-            <div className="mt-8 mb-6">
-              <button
-                onClick={handleExportPack}
-                disabled={isExportingPack}
-                className="w-full h-11 bg-foreground text-background rounded-xl font-semibold text-xs tracking-wide hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isExportingPack ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                {isExportingPack ? "Exportation..." : "Télécharger le pack"}
-              </button>
+                    <AccordionItem value="structure" className="border-border">
+                      <AccordionTrigger className="text-[13px] font-semibold hover:no-underline py-3">
+                        Structure
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <RadiusSelector />
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+
+                  <div className="mt-8 mb-6">
+                    <button
+                      onClick={handleExportPack}
+                      disabled={isExportingPack}
+                      className="w-full h-11 bg-foreground text-background rounded-xl font-semibold text-xs tracking-wide hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isExportingPack ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      {isExportingPack ? "Exportation..." : "Télécharger le pack"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {sidebarTab === "contenu" && (
+                <div className="p-5 flex flex-col gap-5">
+                  <div className="flex flex-col gap-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/30">
+                      Documents contextuels
+                    </span>
+                    <FileUpload files={contentFiles} onChange={setContentFiles} />
+                  </div>
+                </div>
+              )}
             </div>
           </aside>
 
-          {/* PREVIEWS */}
-          <main
-            className="flex-1 p-12 lg:p-20 bg-background ml-[320px]"
-          >
-            <div className="max-w-5xl mx-auto space-y-32">
-              <PreviewContainer title="01 / IDENTITÉ" id="frame-1-da">
-                <Frame1_DA />
-              </PreviewContainer>
+          {/* MAIN AREA */}
+          <main className="flex-1 ml-[320px] bg-background" style={{ minHeight: "calc(100vh - 45px)" }}>
+            {sidebarTab === "visuels" && (
+              <div className="p-12 lg:p-20">
+                <div className="max-w-5xl mx-auto space-y-32">
+                  <PreviewContainer title="01 / IDENTITÉ" id="frame-1-da">
+                    <Frame1_DA />
+                  </PreviewContainer>
 
-              <PreviewContainer title="02 / INTERFACE" id="frame-2-mockup">
-                <Frame2_Mockup />
-              </PreviewContainer>
+                  <PreviewContainer title="02 / INTERFACE" id="frame-2-mockup">
+                    <Frame2_Mockup />
+                  </PreviewContainer>
 
-              <PreviewContainer title="03 / COUVERTURE" id="frame-3-cover">
-                <Frame3_Cover />
-              </PreviewContainer>
-            </div>
+                  <PreviewContainer title="03 / COUVERTURE" id="frame-3-cover">
+                    <Frame3_Cover />
+                  </PreviewContainer>
+                </div>
+              </div>
+            )}
+
+            {sidebarTab === "contenu" && (
+              <div style={{ height: "calc(100vh - 45px)" }}>
+                <ContentChat
+                  chips={contentChips}
+                  onChipsChange={setContentChips}
+                  files={contentFiles}
+                  onAddFiles={setContentFiles}
+                  onRemoveFile={(i) => setContentFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                  brief={contentBrief}
+                  onBriefChange={setContentBrief}
+                  onGenerate={handleGenerateContent}
+                  isGenerating={isGeneratingContent}
+                  content={generatedContent}
+                  error={contentError}
+                />
+              </div>
+            )}
           </main>
         </div>
       )}
