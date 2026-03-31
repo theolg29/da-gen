@@ -135,7 +135,7 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
 
     // Log page errors and failed requests
-    page.on('pageerror', (err) => log(`PAGE ERROR: ${err.message}`));
+    page.on('pageerror', (err: unknown) => log(`PAGE ERROR: ${err instanceof Error ? err.message : String(err)}`));
     page.on('requestfailed', (req) => log(`REQUEST FAILED: ${req.url()} — ${req.failure()?.errorText}`));
     page.on('response', (res) => {
       const reqUrl = res.url();
