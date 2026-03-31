@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
 import { useDAStore } from "@/store/daStore";
 import { UrlInput } from "@/components/ui/UrlInput";
 import { ColorPicker } from "@/components/ui/ColorPicker";
@@ -39,8 +38,6 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-
-const Aurora = dynamic(() => import("@/components/Aurora"), { ssr: false });
 
 /** Wait until all frame IDs exist in the DOM, with a safety timeout */
 function waitForFrames(ids: string[], timeout = 3000): Promise<void> {
@@ -347,108 +344,81 @@ export default function Home() {
         </div>
       )}
 
-      {/* 1. HERO SECTION — stays mounted during loading so the overlay slides on top */}
+      {/* 1. HERO SECTION */}
       {!scrapeResult && (
-        <section className="min-h-screen flex flex-col items-center justify-center px-6 relative overflow-hidden">
-          {/* Aurora animated background */}
-          <div className="absolute inset-0 z-0 opacity-50">
-            <Aurora
-              colorStops={
-                theme === "dark"
-                  ? ["#5B2C8E", "#E8637A", "#FFB86C"]
-                  : ["#7B8FF8", "#9B59E8", "#F5A0FF"]
-              }
-              amplitude={1.2}
-              blend={0.7}
-              speed={0.3}
-            />
-          </div>
-
-          {/* Subtle dot grid overlay */}
+        <section className="min-h-screen flex flex-col items-center justify-center px-6 relative overflow-hidden bg-background">
+          {/* Line grid background */}
           <div
-            className="absolute inset-0 z-[1]"
+            className="absolute inset-0 z-0"
             style={{
               backgroundImage:
-                "radial-gradient(circle, var(--foreground) 1px, transparent 1px)",
-              backgroundSize: "32px 32px",
-              opacity: 0.02,
+                "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
+              backgroundSize: "72px 72px",
+              opacity: 0.5,
             }}
           />
 
-          <div className="max-w-3xl w-full text-center z-10 flex flex-col items-center gap-8">
-            {/* Animated badge */}
+          {/* Corner markers */}
+          {[
+            "top-[72px] left-[72px]",
+            "top-[72px] right-[72px]",
+            "bottom-[72px] left-[72px]",
+            "bottom-[72px] right-[72px]",
+          ].map((pos, i) => (
+            <span key={i} className={`absolute ${pos} text-foreground/15 text-xs font-mono select-none`}>+</span>
+          ))}
+
+          <div className="max-w-2xl w-full text-center z-10 flex flex-col items-center gap-10">
+            {/* Bracket badge */}
             <div
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-border bg-card/50 backdrop-blur-sm shadow-sm"
-              style={{ animation: "fadeSlideUp 0.6s ease-out both" }}
+              className="inline-flex items-center gap-3"
+              style={{ animation: "fadeSlideUp 0.5s ease-out both" }}
             >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              <span className="inline-block w-2.5 h-2.5 border-t-[1.5px] border-l-[1.5px] border-foreground/30" />
+              <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-foreground/40">
+                Générateur d&apos;identité visuelle
               </span>
-              <span className="text-[11px] font-semibold text-foreground/50 tracking-wide">
-                Générateur d'identité visuelle
-              </span>
+              <span className="inline-block w-2.5 h-2.5 border-b-[1.5px] border-r-[1.5px] border-foreground/30" />
             </div>
 
-            {/* Headline — Cabinet Grotesk */}
-            <div style={{ animation: "fadeSlideUp 0.6s ease-out 0.1s both" }}>
+            {/* Headline */}
+            <div style={{ animation: "fadeSlideUp 0.5s ease-out 0.08s both" }}>
               <h1
-                className="text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.08]"
+                className="text-[56px] md:text-[68px] font-extrabold tracking-tight leading-[1.05] text-foreground"
                 style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
               >
-                Votre DA client, <br />
-                <span className="bg-gradient-to-r from-foreground/90 via-foreground/50 to-foreground/80 bg-clip-text text-transparent">
-                  en quelques secondes.
-                </span>
+                Votre DA client,{" "}
+                <br />
+                en quelques secondes.
               </h1>
             </div>
 
             {/* Description */}
             <p
-              className="text-foreground/35 text-lg max-w-lg mx-auto font-medium leading-relaxed"
-              style={{ animation: "fadeSlideUp 0.6s ease-out 0.2s both" }}
+              className="text-foreground/40 text-base max-w-md mx-auto leading-relaxed"
+              style={{ animation: "fadeSlideUp 0.5s ease-out 0.16s both" }}
             >
-              Analysez n'importe quel site web et générez instantanément des
-              visuels de présentation professionnels.
+              Analysez n&apos;importe quel site web et générez instantanément
+              des visuels de présentation professionnels.
             </p>
 
-            {/* Input card */}
+            {/* Input */}
             <div
-              className="w-full max-w-xl"
-              style={{ animation: "fadeSlideUp 0.6s ease-out 0.3s both" }}
+              className="w-full max-w-lg"
+              style={{ animation: "fadeSlideUp 0.5s ease-out 0.24s both" }}
             >
-              <div className="bg-card/70 backdrop-blur-xl p-2.5 rounded-2xl border border-border/50 shadow-2xl shadow-black/[0.06]">
-                <UrlInput onLogs={setScrapeLogs} />
-              </div>
+              <UrlInput onLogs={setScrapeLogs} />
             </div>
 
             {error && (
               <div
-                className="p-4 bg-red-500/5 text-red-500 rounded-xl text-xs font-bold border border-red-500/10 w-full max-w-xl"
+                className="p-4 bg-red-500/5 text-red-500 rounded-xl text-xs font-bold border border-red-500/10 w-full max-w-lg"
                 style={{ animation: "fadeSlideUp 0.3s ease-out both" }}
               >
                 {error}
               </div>
             )}
 
-            {/* Bottom accent features */}
-            <div
-              className="flex items-center gap-6 mt-4"
-              style={{ animation: "fadeSlideUp 0.6s ease-out 0.4s both" }}
-            >
-              {[
-                "Couleurs & typographie",
-                "Screenshots HD",
-                "Export en 1 clic",
-              ].map((feat, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-foreground/15" />
-                  <span className="text-[11px] text-foreground/25 font-medium">
-                    {feat}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         </section>
       )}
