@@ -20,7 +20,7 @@ export const useDAStore = create<DAStore>()(
         selectedColors: result.colors.slice(0, 4).map(c => c.hex),
         fontName: result.font.name,
         fontUrl: result.font.url,
-        bgColor: result.siteBgColor || '#F2EEE9',
+        bgColor: result.siteBgColor || '#FFFFFF',
         activePageIndex: 0,
       }),
 
@@ -40,7 +40,7 @@ export const useDAStore = create<DAStore>()(
             : state.selectedColors
       })),
 
-      bgColor: '#F2EEE9',
+      bgColor: '#f5f5f5',
       setBgColor: (hex: string) => set({ bgColor: hex }),
 
       fontName: '',
@@ -59,6 +59,12 @@ export const useDAStore = create<DAStore>()(
       agencyLogo: '/logo-teaps.svg',
       setAgencyLogo: (logo: string) => set({ agencyLogo: logo }),
 
+      cardImage: null,
+      setCardImage: (img: string | null) => set({ cardImage: img }),
+
+      cardLogoScale: 1,
+      setCardLogoScale: (scale: number) => set({ cardLogoScale: scale }),
+
       screenshotDelay: 2000,
       setScreenshotDelay: (delay: number) => set({ screenshotDelay: delay }),
 
@@ -67,6 +73,25 @@ export const useDAStore = create<DAStore>()(
       setIsLoading: (v: boolean) => set({ isLoading: v }),
       error: null,
       setError: (e: string | null) => set({ error: e }),
+
+      isAddingPage: false,
+      setIsAddingPage: (v: boolean) => set({ isAddingPage: v }),
+
+      isPageInputOpen: false,
+      setIsPageInputOpen: (v: boolean) => set({ isPageInputOpen: v }),
+      removeExtraPage: (index: number) => set((state) => ({
+        scrapeResult: state.scrapeResult
+          ? { ...state.scrapeResult, extraPages: state.scrapeResult.extraPages.filter((_, i) => i !== index) }
+          : null,
+        activePageIndex: 0,
+      })),
+      resetProject: () => set({
+        scrapeResult: null,
+        activePageIndex: 0,
+        isPageInputOpen: false,
+        isAddingPage: false,
+        error: null,
+      }),
     }),
     {
       name: 'da-gen-store',

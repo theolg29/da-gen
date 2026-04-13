@@ -39,6 +39,27 @@ async function dismissPopups(page: Page) {
       }
     }
 
+    // Remove Shadow DOM popups (Shopify Forms, etc.)
+    document.querySelectorAll('shopify-forms-embed, [id*="shopify-forms"], [id*="klaviyo"], klaviyo-popup').forEach(el => {
+      el.remove();
+    });
+
+    // Close buttons inside generic modals/popups
+    const closeSelectors = [
+      '[class*="popup" i] [class*="close" i]', '[class*="popup" i] button[aria-label*="close" i]',
+      '[class*="modal" i] [class*="close" i]', '[class*="modal" i] button[aria-label*="close" i]',
+      '[class*="newsletter" i] [class*="close" i]', '[class*="newsletter" i] button[aria-label*="close" i]',
+      '[class*="signup" i] [class*="close" i]',
+      '.privy-dismiss-button', '[class*="privy"] [class*="close"]',
+      '[class*="optinmonster"] .om-close', '[class*="optimonk"] [class*="close"]',
+      '[class*="wisepops"] [class*="close"]', '[class*="justuno"] [class*="close"]',
+    ];
+    for (const sel of closeSelectors) {
+      document.querySelectorAll(sel).forEach(btn => {
+        if (btn instanceof HTMLElement && btn.offsetParent !== null) btn.click();
+      });
+    }
+
     // CSS injection to hide overlays
     const overlaySelectors = [
       '[class*="cookie-banner" i]', '[class*="cookie-consent" i]', '[class*="cookie-notice" i]',
@@ -51,6 +72,20 @@ async function dismissPopups(page: Page) {
       '[class*="avis-verifies" i]', '[id*="avis-verifies" i]',
       '[class*="chat-widget" i]', '[class*="chatWidget" i]', '[id*="chat-widget" i]',
       '[id*="intercom" i]', '[id*="crisp" i]', '[id*="hubspot-messages" i]', '[id*="tidio" i]',
+      // Newsletter / promo popups
+      '[class*="popup" i][class*="newsletter" i]', '[id*="popup" i][id*="newsletter" i]',
+      '[class*="popup" i][class*="email" i]', '[class*="popup" i][class*="promo" i]',
+      '[class*="popup" i][class*="signup" i]', '[class*="popup-overlay" i]',
+      '[class*="modal-overlay" i]', '[class*="modalOverlay" i]',
+      '.privy-popup', '[class*="privy"]',
+      '[class*="klaviyo" i]', '[id*="klaviyo" i]',
+      '[class*="optinmonster" i]', '[id*="optinmonster" i]',
+      '[class*="optimonk" i]', '[id*="optimonk" i]',
+      '[class*="wisepops" i]', '[id*="wisepops" i]',
+      '[class*="justuno" i]', '[id*="justuno" i]',
+      '[class*="wheelio" i]', '[id*="wheelio" i]',
+      '[class*="spin-a-sale" i]', '[id*="spin-a-sale" i]',
+      'shopify-forms-embed',
     ];
     const style = document.createElement('style');
     style.innerHTML = overlaySelectors.map(s => `${s} { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }`).join('\n');
@@ -59,9 +94,9 @@ async function dismissPopups(page: Page) {
   await new Promise(resolve => setTimeout(resolve, 500));
 }
 
-/** Take desktop (viewport), desktop full page, and mobile full page screenshots */
+/** Take desktop (viewport), desktop full page, scroll-position captures, and mobile screenshots */
 async function captureScreenshots(page: Page) {
-  // Desktop viewport
+  // Desktop viewport (hero / top of page)
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1.5 });
   const desktopBuf = Buffer.from(await page.screenshot());
 
@@ -72,11 +107,30 @@ async function captureScreenshots(page: Page) {
   });
   const desktopFullBuf = Buffer.from(await page.screenshot({ fullPage: true }));
 
-  // Reset body constraints before mobile
+  // Reset body constraints
   await page.evaluate(() => {
     document.body.style.maxHeight = '';
     document.body.style.overflow = '';
   });
+
+  // Scroll-position captures (for single-URL social frames)
+  const totalHeight = await page.evaluate(() => document.body.scrollHeight);
+  const viewportH = 900;
+
+  // Mid-page capture (~40% scroll)
+  const scrollMid = Math.min(Math.round(totalHeight * 0.4), totalHeight - viewportH);
+  await page.evaluate((y) => window.scrollTo(0, y), Math.max(0, scrollMid));
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const desktopMidBuf = Buffer.from(await page.screenshot());
+
+  // Lower-page capture (~70% scroll)
+  const scrollLower = Math.min(Math.round(totalHeight * 0.7), totalHeight - viewportH);
+  await page.evaluate((y) => window.scrollTo(0, y), Math.max(0, scrollLower));
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const desktopLowerBuf = Buffer.from(await page.screenshot());
+
+  // Reset scroll
+  await page.evaluate(() => window.scrollTo(0, 0));
 
   // Mobile full page
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
@@ -96,6 +150,8 @@ async function captureScreenshots(page: Page) {
   return {
     desktop: `data:image/png;base64,${desktopBuf.toString('base64')}`,
     desktopFull: `data:image/png;base64,${desktopFullBuf.toString('base64')}`,
+    desktopMid: `data:image/png;base64,${desktopMidBuf.toString('base64')}`,
+    desktopLower: `data:image/png;base64,${desktopLowerBuf.toString('base64')}`,
     mobile: `data:image/png;base64,${mobileBuf.toString('base64')}`,
     desktopBuffer: desktopBuf,
   };
@@ -103,16 +159,25 @@ async function captureScreenshots(page: Page) {
 
 /** Navigate to a page, dismiss popups, and capture all screenshots */
 async function navigateAndCapture(page: Page, pageUrl: string, delay: number) {
-  await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-  await new Promise(resolve => setTimeout(resolve, delay));
+  await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForNetworkIdle({ idleTime: 1000, timeout: 8000 }).catch(() => {});
+  await new Promise(resolve => setTimeout(resolve, Math.min(delay, 3000)));
   await dismissPopups(page);
   return captureScreenshots(page);
 }
 
-export async function scrapeSite(url: string, delay: number = 2000, extraPages: ExtraPage[] = []) {
-  let browser = null;
+export async function scrapeSite(url: string, delay: number = 2000, extraPages: ExtraPage[] = [], onLog?: (entry: { time: number; msg: string }) => void) {
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
+  const t0 = Date.now();
+  const log = (msg: string) => {
+    const entry = { time: Date.now() - t0, msg };
+    console.log(`[scraper +${entry.time}ms] ${msg}`);
+    onLog?.(entry);
+  };
+
   try {
     const isDev = process.env.NODE_ENV === 'development' || !process.env.VERCEL;
+    log('Launching browser...');
     const exePath = isDev
       ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
       : await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar');
@@ -123,10 +188,20 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
       executablePath: exePath,
       headless: true,
     });
+    log('Browser launched');
 
     const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
 
-    // Intercept font service URLs (Google Fonts, Fontshare, Adobe Fonts)
+    page.on('pageerror', (err: unknown) => log(`PAGE ERROR: ${err instanceof Error ? err.message : String(err)}`));
+    page.on('requestfailed', (req) => log(`REQUEST FAILED: ${req.url()} — ${req.failure()?.errorText}`));
+    page.on('response', (res) => {
+      const reqUrl = res.url();
+      if (reqUrl.endsWith('.css') || reqUrl.includes('/css')) {
+        log(`CSS ${res.status()}: ${reqUrl.slice(0, 120)}`);
+      }
+    });
+
     const googleFonts: string[] = [];
     const fontshareFonts: string[] = [];
     const adobeFonts: string[] = [];
@@ -137,22 +212,58 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
       if (reqUrl.includes('use.typekit.net')) adobeFonts.push(reqUrl);
     });
 
-    // Navigate and capture main page
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    log(`Navigating to ${url} (waitUntil: domcontentloaded)...`);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    log('DOM loaded, waiting for network idle...');
+    await page.waitForNetworkIdle({ idleTime: 1000, timeout: 15000 }).catch(() => log('Network idle timeout (15s) — continuing'));
+    log(`Waiting ${delay}ms (user delay)...`);
     await new Promise(resolve => setTimeout(resolve, delay));
+
+    // Check how many stylesheets are loaded
+    const styleInfo = await page.evaluate(() => {
+      const sheets = Array.from(document.styleSheets);
+      const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+      return {
+        loadedSheets: sheets.length,
+        linkTags: links.length,
+        sheetsWithRules: sheets.filter(s => { try { return s.cssRules.length > 0; } catch { return false; } }).length,
+        failedSheets: links.filter(l => !(l as HTMLLinkElement).sheet).map(l => (l as HTMLLinkElement).href),
+      };
+    });
+    log(`Stylesheets: ${styleInfo.loadedSheets} loaded, ${styleInfo.linkTags} <link> tags, ${styleInfo.sheetsWithRules} with rules`);
+    if (styleInfo.failedSheets.length > 0) {
+      log(`FAILED stylesheets: ${styleInfo.failedSheets.join(', ')}`);
+    }
+
     await dismissPopups(page);
+    log('Popups dismissed');
 
     const title = await page.title();
     const domain = new URL(url).hostname;
+    log(`Title: "${title}", Domain: ${domain}`);
     page.setDefaultTimeout(25000);
 
     // Main page screenshots
+    log('Capturing screenshots...');
     const mainScreenshots = await captureScreenshots(page);
+    log('Screenshots captured');
 
-    // Extract colors from desktop hero
-    const vibrantColors = await extractColors(mainScreenshots.desktopBuffer);
+    log('Extracting colors...');
+    let vibrantColors: Awaited<ReturnType<typeof extractColors>> = [];
+    try {
+      let timeoutId: ReturnType<typeof setTimeout>;
+      vibrantColors = await Promise.race([
+        extractColors(mainScreenshots.desktopBuffer),
+        new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error('timeout')), 10000); }),
+      ]);
+      clearTimeout(timeoutId!);
+      log(`Colors extracted (${vibrantColors.length} swatches)`);
+    } catch {
+      log('Color extraction failed/timeout — using CSS colors only');
+    }
 
     // Extract logos (multiple candidates)
+    log('Extracting logos...');
     let logoCandidates = await page.evaluate(() => {
       const candidates: string[] = [];
 
@@ -186,6 +297,7 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
       return Array.from(new Set(candidates)).filter(src => src.startsWith('http') || src.startsWith('data:'));
     });
 
+    log(`Found ${logoCandidates.length} logo candidates`);
     const logosBase64: string[] = [];
     for (const src of logoCandidates.slice(0, 8)) {
       try {
@@ -204,7 +316,10 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
       } catch { /* skip failed logos */ }
     }
 
+    log(`Logos fetched: ${logosBase64.length}`);
+
     // CSS colors (buttons, links, accents)
+    log('Extracting CSS colors...');
     const cssColors = await page.evaluate(() => {
       const colors = new Set<string>();
       document.querySelectorAll('button, a, [class*="btn"], [class*="active"], h1, h2').forEach(el => {
@@ -229,6 +344,7 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
     const finalColors = Array.from(new Map(combinedColors.map(c => [c.hex, c])).values()).slice(0, 8);
 
     // Extract fonts
+    log('Extracting fonts...');
     const extractedFonts = await page.evaluate(() => {
       const fonts = new Map<string, number>();
       const iconKeywords = ['icon', 'symbol', 'remix', 'lucide', 'awesome', 'fontello', 'glyph', 'material'];
@@ -267,11 +383,28 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
     });
 
     const siteBgColor = await page.evaluate(() => {
-      const bg = window.getComputedStyle(document.body).backgroundColor;
-      const rgb = bg.match(/\d+/g);
-      if (rgb && rgb.length >= 3) {
-        return "#" + rgb.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('').toUpperCase();
-      }
+      const toHex = (rgbStr: string): string | null => {
+        const rgb = rgbStr.match(/[\d.]+/g);
+        if (!rgb || rgb.length < 3) return null;
+        // Check if transparent (alpha = 0 or rgba with 0 alpha)
+        const alpha = rgb.length >= 4 ? parseFloat(rgb[3]) : 1;
+        if (alpha === 0) return null;
+        const r = parseInt(rgb[0]), g = parseInt(rgb[1]), b = parseInt(rgb[2]);
+        // Skip black from transparent backgrounds
+        if (r === 0 && g === 0 && b === 0 && alpha < 1) return null;
+        return "#" + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+      };
+
+      // Try body first
+      const bodyBg = window.getComputedStyle(document.body).backgroundColor;
+      const bodyHex = toHex(bodyBg);
+      if (bodyHex) return bodyHex;
+
+      // Try html element
+      const htmlBg = window.getComputedStyle(document.documentElement).backgroundColor;
+      const htmlHex = toHex(htmlBg);
+      if (htmlHex) return htmlHex;
+
       return "#FFFFFF";
     });
 
@@ -302,10 +435,13 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
 
     const primaryFont = fontsWithUrls[0];
 
+    log('Main page extraction complete');
+
     // Capture extra pages
     const capturedExtraPages: { label: string; url: string; desktop: string; desktopFull: string; mobile: string }[] = [];
     for (const ep of extraPages) {
       try {
+        log(`Capturing extra page: ${ep.label} (${ep.url})`);
         const shots = await navigateAndCapture(page, ep.url, delay);
         capturedExtraPages.push({
           label: ep.label,
@@ -314,8 +450,9 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
           desktopFull: shots.desktopFull,
           mobile: shots.mobile,
         });
+        log(`Extra page "${ep.label}" captured`);
       } catch (e) {
-        console.error(`[scraper] Failed to capture extra page "${ep.label}":`, e);
+        log(`Extra page "${ep.label}" FAILED: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
@@ -340,11 +477,13 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
       screenshots: {
         desktop: mainScreenshots.desktop,
         desktopFull: mainScreenshots.desktopFull,
+        desktopMid: mainScreenshots.desktopMid,
+        desktopLower: mainScreenshots.desktopLower,
         mobile: mainScreenshots.mobile,
       },
       extraPages: capturedExtraPages,
     };
   } finally {
-    if (browser) await (browser as any).close();
+    if (browser) await browser.close();
   }
 }

@@ -29,12 +29,31 @@ export type ScrapeResult = {
   screenshots: {
     desktop: string;
     desktopFull: string;
+    desktopMid: string;
+    desktopLower: string;
     mobile: string;
   };
   extraPages: PageScreenshots[];
   siteUrl: string;
   domain: string;
   title: string;
+};
+
+export type GeneratedContent = {
+  caseStudy: {
+    title: string;
+    tagline: string;
+    intro: string;
+    challenge: string;
+    solution: string;
+    results: string;
+    services: string[];
+    platform: string;
+  };
+  socialPost: {
+    caption: string;
+    hashtags: string[];
+  };
 };
 
 export type DAStore = {
@@ -75,6 +94,12 @@ export type DAStore = {
   agencyLogo: string;
   setAgencyLogo: (logo: string) => void;
 
+  cardImage: string | null;
+  setCardImage: (img: string | null) => void;
+
+  cardLogoScale: number;
+  setCardLogoScale: (scale: number) => void;
+
   screenshotDelay: number;
   setScreenshotDelay: (delay: number) => void;
 
@@ -82,4 +107,12 @@ export type DAStore = {
   setIsLoading: (v: boolean) => void;
   error: string | null;
   setError: (e: string | null) => void;
+
+  isAddingPage: boolean;
+  setIsAddingPage: (v: boolean) => void;
+
+  isPageInputOpen: boolean;
+  setIsPageInputOpen: (v: boolean) => void;
+  removeExtraPage: (index: number) => void;
+  resetProject: () => void;
 };
