@@ -1,11 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
+import * as Lucide from "lucide-react";
 import { icons, Briefcase, X, GripVertical, ImagePlus, type LucideIcon } from "lucide-react";
 import { useDAStore } from "@/store/daStore";
 import { ASSET_DIMS, TEAPS_ACCENT } from "@/lib/sectorThemes";
 import { BRAND_MAP } from "@/lib/brandLogos";
 import type { AssetLayer, SectorAsset } from "@/types";
 
-const ICON_RECORD = icons as unknown as Record<string, LucideIcon>;
+// `icons` ne contient que les noms actuels ; les exports nommés gardent aussi les
+// alias des icônes renommées par Lucide 1.0 (ex. `Building2` → `BuildingComplex`)
+// → les calques déjà enregistrés sous un ancien nom s'affichent toujours.
+const ICON_RECORD = { ...Lucide, ...icons } as unknown as Record<string, LucideIcon>;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /**

@@ -46,7 +46,7 @@ export const SECTOR_THEMES: Record<string, ThemePreset> = {
   wordpress:   { label: 'WordPress',    query: 'site web ordinateur bureau',    iconName: 'Globe',           pill: 'Un site qui vous ressemble',    badge: 'WordPress' },
   ecommerce:   { label: 'E-commerce',   query: 'e-commerce colis livraison',    iconName: 'ShoppingCart',    pill: 'Boostez vos ventes en ligne',   badge: 'E-commerce' },
   restaurant:  { label: 'Restaurant',   query: 'restaurant cuisine gastronomie',iconName: 'UtensilsCrossed', pill: 'Attirez plus de clients',       badge: 'Restaurant' },
-  immobilier:  { label: 'Immobilier',   query: 'immobilier maison architecture',iconName: 'Building2',        pill: 'Valorisez vos biens',           badge: 'Immobilier' },
+  immobilier:  { label: 'Immobilier',   query: 'immobilier maison architecture',iconName: 'BuildingComplex',  pill: 'Valorisez vos biens',           badge: 'Immobilier' },
   sante:       { label: 'Santé',        query: 'cabinet medical sante',         iconName: 'Stethoscope',     pill: 'Rassurez vos patients',         badge: 'Santé' },
   btp:         { label: 'BTP',          query: 'chantier construction batiment',iconName: 'HardHat',         pill: 'Construisez votre présence',    badge: 'BTP' },
   beaute:      { label: 'Beauté',       query: 'salon beaute coiffure',         iconName: 'Scissors',        pill: 'Révélez votre image',           badge: 'Beauté' },

@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Instagram, Linkedin, Smartphone, Monitor } from "lucide-react";
+import { Smartphone, Monitor } from "lucide-react";
+import { Instagram, Linkedin } from "@/components/ui/BrandIcons";
 import { useDAStore } from "@/store/daStore";
 import type { SocialPlatform, PreviewFormat } from "@/types";
 import { InstagramPostView } from "./InstagramPostView";

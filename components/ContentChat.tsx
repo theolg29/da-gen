@@ -4,9 +4,9 @@ import React, { useRef } from "react";
 import {
   Loader2, ArrowUp, Copy, Check,
   ChevronDown, ChevronUp, Paperclip, X,
-  Linkedin, Instagram,
   FileText, Braces, Code, Sparkles, MonitorSmartphone, RotateCcw,
 } from "lucide-react";
+import { Instagram, Linkedin } from "@/components/ui/BrandIcons";
 import { toast } from "sonner";
 import { GeneratedContent } from "@/types";
 

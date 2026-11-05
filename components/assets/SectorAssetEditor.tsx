@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2, Trash2, Shapes, Plus, ImageIcon, Tag, Award, Boxes, Building2, Ban, RotateCcw, type LucideIcon } from "lucide-react";
+import { Download, Loader2, Trash2, Shapes, Plus, ImageIcon, Tag, Award, Boxes, BuildingComplex, Ban, RotateCcw, type LucideIcon } from "lucide-react";
 import { useDAStore } from "@/store/daStore";
 import { FrameSectorAsset } from "@/components/frames/FrameSectorAsset";
 import { StockPickerModal } from "./StockPickerModal";
@@ -30,7 +30,7 @@ const LAYER_ICON: Record<AssetLayerType, LucideIcon> = {
   pill: Tag,
   badge: Award,
   brand: Boxes,
-  logo: Building2,
+  logo: BuildingComplex,
 };
 
 // Menu « Ajouter » : icône et logo techno sont fusionnés en une seule entrée
@@ -41,7 +41,7 @@ const ADD_ITEMS: { key: AddKey; label: string; icon: LucideIcon }[] = [
   { key: "symbol", label: "Icône / Logo", icon: Shapes },
   { key: "pill", label: "Pilule", icon: Tag },
   { key: "badge", label: "Badge", icon: Award },
-  { key: "logo", label: "Logo TEAPS", icon: Building2 },
+  { key: "logo", label: "Logo TEAPS", icon: BuildingComplex },
 ];
 
 // Cible du picker unifié : nouveau symbole, édition d'un calque icône/brand
