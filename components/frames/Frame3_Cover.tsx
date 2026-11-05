@@ -52,7 +52,8 @@ export const Frame3_Cover = ({ id }: { id?: string }) => {
           paddingTop: "32px",
           paddingLeft: "32px",
           paddingRight: "32px",
-          paddingBottom: "0",
+          // Bande blanche en bas, comme sur les côtés → écran complet.
+          paddingBottom: "32px",
         }}
       >
         {/* ═══ NAV BAR ═══ */}
@@ -179,8 +180,7 @@ export const Frame3_Cover = ({ id }: { id?: string }) => {
             flex: 1,
             width: "100%",
             overflow: "hidden",
-            borderTopLeftRadius: "16px",
-            borderTopRightRadius: "16px",
+            borderRadius: "16px",
           }}
         >
           <EditableImage
