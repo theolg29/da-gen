@@ -40,8 +40,23 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      // Le scraper garde des listeners Puppeteer (`requestfailed`, `response`,
+      // `pageerror`) actifs jusqu'à la fermeture du navigateur : ils peuvent
+      // logger APRÈS qu'on a fermé le flux (scrape en erreur, client parti).
+      // `enqueue` sur un controller fermé jette « Invalid state: Controller is
+      // already closed » — depuis un listener, ça remonte en unhandledRejection
+      // et fait tomber le process Node. On no-ope donc après la fermeture.
+      let closed = false;
+      const send = (payload: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(payload));
+        } catch {
+          closed = true; // flux coupé côté client : on arrête d'émettre
+        }
+      };
       const sendLog = (data: { time: number; msg: string }) => {
-        controller.enqueue(encoder.encode(`event: log\ndata: ${JSON.stringify(data)}\n\n`));
+        send(`event: log\ndata: ${JSON.stringify(data)}\n\n`);
       };
 
       try {
@@ -52,14 +67,15 @@ export async function POST(req: NextRequest) {
         const totalChunks = Math.ceil(json.length / CHUNK_SIZE);
         for (let i = 0; i < totalChunks; i++) {
           const chunk = json.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          controller.enqueue(encoder.encode(`event: result-chunk\ndata: ${JSON.stringify({ i, total: totalChunks, chunk })}\n\n`));
+          send(`event: result-chunk\ndata: ${JSON.stringify({ i, total: totalChunks, chunk })}\n\n`);
         }
-        controller.enqueue(encoder.encode(`event: done\ndata: {}\n\n`));
+        send(`event: done\ndata: {}\n\n`);
       } catch (error: unknown) {
         console.error('Scraping error:', error);
-        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to scrape site' })}\n\n`));
+        send(`event: error\ndata: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to scrape site' })}\n\n`);
       } finally {
-        controller.close();
+        closed = true;
+        try { controller.close(); } catch { /* déjà fermé */ }
       }
     },
   });

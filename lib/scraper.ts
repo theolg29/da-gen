@@ -21,6 +21,16 @@ async function safeEvaluate(page: Page, fn: () => void): Promise<boolean> {
   }
 }
 
+/** Idem `safeEvaluate` pour un `evaluate` qui renvoie une valeur : `fallback` si la page recharge. */
+async function safeEvaluateValue<T>(page: Page, fn: () => T, fallback: T): Promise<T> {
+  try {
+    return await page.evaluate(fn);
+  } catch (err) {
+    if (isContextDestroyed(err)) return fallback;
+    throw err;
+  }
+}
+
 /** Attend qu'un contexte JS exploitable existe à nouveau (après un rechargement de page). */
 async function waitForLiveContext(page: Page, timeout = 15000): Promise<boolean> {
   const deadline = Date.now() + timeout;
@@ -37,6 +47,36 @@ async function waitForLiveContext(page: Page, timeout = 15000): Promise<boolean>
 }
 
 /**
+ * Rejoue UNE fois une étape du pipeline si la page a navigué sous nos pieds.
+ *
+ * `dismissPopupsAndSettle` n'attrape que les rechargements partis dans sa fenêtre
+ * de garde ; certains gates/consents rechargent plus tard (aller-retour serveur
+ * pour poser le cookie). L'`Execution context was destroyed` tombait alors dans
+ * l'étape SUIVANTE (injection de police, captures…) et faisait échouer TOUT le
+ * scrape. On attend ici le retour d'un contexte vivant, on re-prépare la page
+ * (les popups et nos styles injectés sont partis avec l'ancien document), puis on
+ * retente. Une seule retente : si ça renavigue encore, l'erreur remonte.
+ */
+async function withNavigationRetry<T>(
+  page: Page,
+  label: string,
+  prepare: () => Promise<void>,
+  run: () => Promise<T>,
+  log?: (msg: string) => void,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (!isContextDestroyed(err)) throw err;
+    log?.(`${label} interrompu par une navigation tardive — page re-préparée, nouvelle tentative`);
+    await waitForLiveContext(page);
+    await page.waitForNetworkIdle({ idleTime: 700, timeout: 8000 }).catch(() => {});
+    await prepare();
+    return run();
+  }
+}
+
+/**
  * `dismissPopups` + encaissement du RECHARGEMENT de page que certains gestionnaires
  * de consentement déclenchent à l'acceptation (Orejime et beaucoup de plugins WP :
  * le clic pose le cookie puis relance la page pour charger les scripts consentis —
@@ -44,8 +84,13 @@ async function waitForLiveContext(page: Page, timeout = 15000): Promise<boolean>
  * meurt en « Execution context was destroyed » et fait planter TOUT le scrape.
  *
  * Le reload emportant aussi le <style> de masquage des overlays injecté par
- * dismissPopups, on rejoue la passe complète sur le nouveau document. Fenêtre de
- * garde après chaque passe : le reload part quelques centaines de ms après le clic.
+ * dismissPopups, on rejoue la passe complète sur le nouveau document.
+ *
+ * Fenêtre de garde après chaque passe : 800ms suffisent pour un reload de bandeau
+ * cookies (JS local), mais un age gate en <form> POSTe au serveur — la navigation
+ * ne part qu'après l'aller-retour (~1,2s sur cantarellegindeprovence.fr). On
+ * étend donc la garde à 4s dans ce SEUL cas, et on la coupe dès que la navigation
+ * est détectée : un site sans age gate ne paie pas une milliseconde de plus.
  */
 async function dismissPopupsAndSettle(page: Page, log?: (msg: string) => void) {
   for (let pass = 0; pass < 3; pass++) {
@@ -53,13 +98,17 @@ async function dismissPopupsAndSettle(page: Page, log?: (msg: string) => void) {
     const onNav = (frame: Frame) => { if (frame === page.mainFrame()) navigated = true; };
     page.on('framenavigated', onNav);
     try {
-      await dismissPopups(page);
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const ageGateClicked = await dismissPopups(page);
+      const guard = ageGateClicked ? 4000 : 800;
+      const deadline = Date.now() + guard;
+      do {
+        await new Promise((resolve) => setTimeout(resolve, ageGateClicked ? 150 : 800));
+      } while (!navigated && Date.now() < deadline);
     } finally {
       page.off('framenavigated', onNav);
     }
     if (!navigated) return;
-    log?.('Consent banner reloaded the page — replaying the popup pass');
+    log?.('Page rechargée (age gate / consentement) — nouvelle passe de nettoyage');
     await waitForLiveContext(page);
     await page.waitForNetworkIdle({ idleTime: 700, timeout: 8000 }).catch(() => {});
   }
@@ -93,17 +142,34 @@ function extractBrandName(title: string, ogSiteName: string, domain: string): st
   return d ? d.charAt(0).toUpperCase() + d.slice(1) : domain;
 }
 
-/** Dismiss cookie banners, hide overlays & floating widgets */
-async function dismissPopups(page: Page) {
+/**
+ * Dismiss cookie banners, hide overlays & floating widgets.
+ * @returns true si un bouton d'age gate a été cliqué — beaucoup de ces gates sont
+ * des <form> qui POSTent : une navigation part dans la seconde qui suit, et
+ * l'appelant doit l'attendre avant de toucher au DOM.
+ */
+async function dismissPopups(page: Page): Promise<boolean> {
   // Age gates ("avez-vous 18 ans ?") en PREMIER : ils bloquent tout le reste
   // (y compris le bandeau cookies). On clique TOUJOURS le bouton affirmatif,
   // jamais le "non" (qui redirige hors du site) ; on saisit une date de
   // naissance majeure si une est demandée ; on retire l'overlay en dernier
   // recours. Couvre l'app Shopify AgeX (cmginfotech) + une heuristique
   // générique scopée aux modales qui parlent d'âge/alcool.
-  await safeEvaluate(page, () => {
-    const isVisible = (el: Element | null): el is HTMLElement =>
-      !!el && el instanceof HTMLElement && el.offsetParent !== null;
+  const ageGateClicked = await safeEvaluateValue(page, () => {
+    let clicked = false;
+    // ⚠ NE PAS tester `offsetParent !== null` ici : la spec CSSOM le fixe à null
+    // pour TOUT élément `position: fixed` — or une modale d'age gate plein écran
+    // l'est presque toujours (cas chateaujasson.com : #cmg_age_preview_img est
+    // fixed). Le gate passait donc pour « invisible », aucun bouton n'était
+    // cliqué, et la capture partait avec la modale en travers. On teste la boîte
+    // réelle + les styles calculés à la place.
+    const isVisible = (el: Element | null): el is HTMLElement => {
+      if (!(el instanceof HTMLElement)) return false;
+      const cs = window.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
 
     // --- AgeX (Shopify, cmginfotech) : id/classe connus ---
     if (document.querySelector('#cmginfoTechmodal')) {
@@ -118,8 +184,10 @@ async function dismissPopups(page: Page) {
       setVal('#cmg_age_birthdate', '1');
       setVal('#cmg_age_birthmonth', '1');
       setVal('#cmg_age_birthyear', '1990');
-      const agree = document.querySelector('#agreebtn, .cmg_age_agree_btn') as HTMLElement | null;
-      agree?.click();
+      // `.cmg_age_agree` : variante « OUI / NON » du template 5 (chateaujasson),
+      // où le bouton affirmatif est un simple <div> sans id.
+      const agree = document.querySelector('#agreebtn, .cmg_age_agree_btn, .cmg_age_agree') as HTMLElement | null;
+      if (agree) { agree.click(); clicked = true; }
     }
 
     // --- Heuristique générique (autres apps d'age gate) ---
@@ -142,13 +210,21 @@ async function dismissPopups(page: Page) {
       const btns = Array.from(
         modal.querySelectorAll<HTMLElement>('button, a[role="button"], a, input[type="button"], input[type="submit"], [class*="btn" i]')
       ).filter(isVisible);
+      // ⚠ `.value` UNIQUEMENT pour les <input> (dont le libellé EST la value).
+      // Sur un <button>, `value` est la donnée postée, pas le texte : les gates
+      // en formulaire l'utilisent pour le oui/non (cas cantarellegindeprovence.fr :
+      // <button value="1">Oui</button>) → un `value || innerText` lisait « 1 »,
+      // le bouton affirmatif n'était jamais reconnu et la page restait bloquée.
+      const label = (b: HTMLElement) =>
+        (b instanceof HTMLInputElement ? b.value : (b.innerText || b.textContent || '')).trim();
       const yes = btns.find((b) => {
-        const t = ((b as HTMLInputElement).value || b.innerText || b.textContent || '').trim();
+        const t = label(b);
         return affirmRegex.test(t) && !negRegex.test(t);
       });
-      if (yes) { yes.click(); break; }
+      if (yes) { yes.click(); clicked = true; break; }
     }
-  });
+    return clicked;
+  }, false);
   await new Promise((resolve) => setTimeout(resolve, 400));
 
   // Filet de sécurité : retirer les overlays d'age gate encore visibles et
@@ -156,6 +232,10 @@ async function dismissPopups(page: Page) {
   await safeEvaluate(page, () => {
     const sels = [
       '#cmginfoTechmodal',
+      // AgeX pose aussi sa modale/son voile hors du conteneur selon le template.
+      // ⚠ Cibler `cmg_age_` (avec l'underscore) et PAS `cmginfotech` : l'app pose
+      // `cmginfotech_scroll` sur le <body>, qu'on supprimerait avec le site.
+      '[id^="cmg_age" i]', '[class*="cmg_age_" i]',
       '[id*="age-gate" i]', '[class*="age-gate" i]',
       '[id*="agegate" i]', '[class*="agegate" i]',
       '[id*="age-verification" i]', '[class*="age-verification" i]',
@@ -350,6 +430,7 @@ async function dismissPopups(page: Page) {
     document.head.appendChild(style);
   });
   await new Promise(resolve => setTimeout(resolve, 500));
+  return ageGateClicked;
 }
 
 /**
@@ -370,7 +451,10 @@ async function dismissPopups(page: Page) {
  * jamais la police emoji, la typo du site reste intacte.
  */
 async function injectEmojiFont(page: Page) {
-  await page.evaluate(() => {
+  // safeEvaluate : purement cosmétique — si la page recharge pile à cet instant,
+  // on abandonne l'injection plutôt que de faire tomber le scrape (le retry de
+  // `withNavigationRetry` la rejouera de toute façon).
+  await safeEvaluate(page, () => {
     const fontUrl = 'https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFab4.ttf';
     const style = document.createElement('style');
     style.setAttribute('data-da-gen-emoji', '');
@@ -434,7 +518,7 @@ async function injectEmojiFont(page: Page) {
  * le retour en haut et fige le hero plus bas au moment de la capture. Idempotent.
  */
 async function stabilizePage(page: Page) {
-  await page.evaluate(() => {
+  await safeEvaluate(page, () => {
     if (document.querySelector('style[data-da-gen-reveal]')) return;
     const style = document.createElement('style');
     style.setAttribute('data-da-gen-reveal', '');
@@ -727,9 +811,12 @@ async function navigateAndCapture(page: Page, pageUrl: string, delay: number, zo
   await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
   await page.waitForNetworkIdle({ idleTime: 1000, timeout: 8000 }).catch(() => {});
   await new Promise(resolve => setTimeout(resolve, Math.min(delay, 3000)));
-  await dismissPopupsAndSettle(page, log);
-  await injectEmojiFont(page);
-  return captureScreenshots(page, zoom);
+  const prepare = async () => {
+    await dismissPopupsAndSettle(page, log);
+    await injectEmojiFont(page);
+  };
+  await prepare();
+  return withNavigationRetry(page, 'Captures', prepare, () => captureScreenshots(page, zoom), log);
 }
 
 /**
@@ -832,7 +919,8 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
     log(`Waiting ${delay}ms (user delay)...`);
     await new Promise(resolve => setTimeout(resolve, delay));
 
-    // Check how many stylesheets are loaded
+    // Check how many stylesheets are loaded (diagnostic pur : ne doit jamais
+    // faire échouer le scrape si la page navigue à cet instant).
     const styleInfo = await page.evaluate(() => {
       const sheets = Array.from(document.styleSheets);
       const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
@@ -842,10 +930,12 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
         sheetsWithRules: sheets.filter(s => { try { return s.cssRules.length > 0; } catch { return false; } }).length,
         failedSheets: links.filter(l => !(l as HTMLLinkElement).sheet).map(l => (l as HTMLLinkElement).href),
       };
-    });
-    log(`Stylesheets: ${styleInfo.loadedSheets} loaded, ${styleInfo.linkTags} <link> tags, ${styleInfo.sheetsWithRules} with rules`);
-    if (styleInfo.failedSheets.length > 0) {
-      log(`FAILED stylesheets: ${styleInfo.failedSheets.join(', ')}`);
+    }).catch(() => null);
+    if (styleInfo) {
+      log(`Stylesheets: ${styleInfo.loadedSheets} loaded, ${styleInfo.linkTags} <link> tags, ${styleInfo.sheetsWithRules} with rules`);
+      if (styleInfo.failedSheets.length > 0) {
+        log(`FAILED stylesheets: ${styleInfo.failedSheets.join(', ')}`);
+      }
     }
 
     await dismissPopupsAndSettle(page, log);
@@ -854,20 +944,29 @@ export async function scrapeSite(url: string, delay: number = 2000, extraPages: 
     await injectEmojiFont(page);
     log('Emoji font injected');
 
-    const title = await page.title();
+    // Métadonnées : si la page recharge ici (gate/consent tardif), on attend le
+    // nouveau document plutôt que de faire échouer le scrape.
+    await waitForLiveContext(page);
+    const title = await page.title().catch(() => '');
     const domain = new URL(url).hostname;
     const ogSiteName = await page.evaluate(() =>
       document.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim()
       || document.querySelector('meta[name="application-name"]')?.getAttribute('content')?.trim()
       || ''
-    );
+    ).catch(() => '');
     const siteName = extractBrandName(title, ogSiteName, domain);
     log(`Title: "${title}", Site name: "${siteName}", Domain: ${domain}`);
     page.setDefaultTimeout(25000);
 
     // Main page screenshots
     log(`Capturing screenshots (zoom ${Math.round(zoom * 100)}%)...`);
-    const mainScreenshots = await captureScreenshots(page, zoom);
+    const mainScreenshots = await withNavigationRetry(
+      page,
+      'Captures',
+      async () => { await dismissPopupsAndSettle(page, log); await injectEmojiFont(page); },
+      () => captureScreenshots(page, zoom),
+      log,
+    );
     log('Screenshots captured');
 
     log('Extracting colors...');
